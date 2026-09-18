@@ -2,7 +2,7 @@
   "name": "markdooown",
   "displayName": "markdooown",
   "description": "在 VS Code 底部面板即時預覽目前開啟的 Markdown 檔案，可切換一般預覽與增強預覽（數學式、註腳、Mermaid）。面板沒開就完全不動作。",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "publisher": "workjerry",
   "license": "Apache-2.0",
   "repository": {
@@ -33,6 +33,11 @@
   ],
   "icon": "resources/icon.png",
   "main": "./out/extension.js",
+  "capabilities": {
+    "untrustedWorkspaces": {
+      "supported": false
+    }
+  },
   "contributes": {
     "viewsContainers": {
       "panel": [
@@ -59,7 +64,18 @@
         "command": "markdooown.show",
         "title": "markdooown: Show Preview Panel"
       }
-    ]
+    ],
+    "configuration": {
+      "title": "markdooown",
+      "properties": {
+        "markdooown.allowRemoteImages": {
+          "type": "boolean",
+          "default": true,
+          "scope": "application",
+          "markdownDescription": "預覽時自動載入 `https:` 遠端圖片。關閉後只顯示本機與 `data:` 圖片，避免文件內的遠端圖片被用來追蹤開啟行為。"
+        }
+      }
+    }
   },
   "scripts": {
     "typecheck": "tsc -p . --noEmit",
@@ -78,6 +94,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.39.5",
+    "@types/jsdom": "^30.0.0",
     "@types/markdown-it": "^14.2.0",
     "@types/markdown-it-footnote": "^3.0.4",
     "@types/mocha": "^10.0.10",
@@ -88,6 +105,7 @@
     "esbuild": "^0.25.12",
     "eslint": "^9.39.5",
     "highlight.js": "^11.12.0",
+    "jsdom": "^30.1.0",
     "katex": "^0.18.7",
     "markdown-it": "^14.3.2",
     "markdown-it-footnote": "^4.0.0",
@@ -95,5 +113,8 @@
     "mocha": "^11.8.0",
     "typescript": "^5.9.3",
     "typescript-eslint": "^8.70.0"
+  },
+  "dependencies": {
+    "dompurify": "^3.4.15"
   }
 }

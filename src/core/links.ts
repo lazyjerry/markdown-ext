@@ -3,7 +3,8 @@ export type LinkTarget =
   | { kind: 'anchor'; id: string }
   | { kind: 'file'; path: string; fragment: string | null };
 
-const EXTERNAL = /^(https?:|mailto:|vscode:)/i;
+// vscode: 會交給其他擴充的 URI handler 執行動作，文件內容不可信，不放行。
+const EXTERNAL = /^(https?:|mailto:)/i;
 /** 帶 scheme 但不是上面那幾種（javascript:、data: 等）一律不處理。 */
 const ANY_SCHEME = /^[a-z][a-z0-9+.-]*:/i;
 
@@ -34,4 +35,10 @@ function safeDecode(value: string): string {
   } catch {
     return value;
   }
+}
+
+/** `target` 等於 `base` 或位於其下；兩者都要是正規化後（已解析 `..`）的 URI 字串。 */
+export function isWithin(target: string, base: string): boolean {
+  const prefix = base.endsWith('/') ? base : `${base}/`;
+  return target === base || target.startsWith(prefix);
 }

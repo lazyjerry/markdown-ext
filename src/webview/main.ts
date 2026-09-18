@@ -1,8 +1,10 @@
+import DOMPurify from 'dompurify';
 import type MarkdownIt from 'markdown-it';
 
 import type { ClientMessage, HostMessage, PreviewMode } from '../shared/protocol';
 import type { EnhancedApi, MermaidApi } from './enhancedApi';
 import { createRenderer, resolveResource } from './render';
+import { createSafeRender } from './sanitize';
 
 declare function acquireVsCodeApi(): { postMessage(message: ClientMessage): void };
 
@@ -17,6 +19,7 @@ const content = document.getElementById('content')!;
 const modeButtons = [...document.querySelectorAll<HTMLButtonElement>('#bar [data-mode]')];
 
 const basicMd = createRenderer();
+const safeRender = createSafeRender(DOMPurify);
 let enhancedMd: MarkdownIt | null = null;
 let enhancedLoading: Promise<void> | null = null;
 let mermaidLoading: Promise<MermaidApi | null> | null = null;
@@ -78,7 +81,8 @@ function render(message: RenderMessage): void {
 
   fileLabel.textContent = message.fileName;
   fileLabel.title = message.fileName;
-  content.innerHTML = md.render(message.text);
+  // 先清洗 markdown 輸出，Mermaid 的 SVG 之後才在 renderMermaid 產生（securityLevel: strict）。
+  content.replaceChildren(safeRender(md, message.text));
   for (const img of content.querySelectorAll('img')) {
     const src = img.getAttribute('src');
     if (src) {

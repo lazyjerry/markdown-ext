@@ -4,6 +4,23 @@
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-09-19
+
+### Security
+
+安全性修正：
+
+- 預覽前先用 DOMPurify 清洗 Markdown 輸出：移除 `<style>`、`<form>`、`<meta>`、`<base>`、`<iframe>`、`<object>`、`<embed>`、`<link>` 與內嵌 HTML 的 `style` 屬性，避免文件蓋住面板誘導點擊、偽造表單或導向其他頁面。表格對齊、標題錨點、KaTeX 排版不受影響。
+- CSP 加上 `base-uri 'none'` 與 `form-action 'none'`。
+- 預覽中的 `vscode:` 連結不再交給 VS Code 開啟；外部連結只接受 `http:`、`https:`、`mailto:`。
+- 相對路徑連結只能開啟工作區資料夾內、或目前文件所在目錄之下的檔案，其餘顯示警告不開啟（例如 `../../../../etc/hosts`）。
+- CSP nonce 改用 `crypto.randomBytes` 產生。
+- `package.json` 明確宣告不支援受限模式（Restricted Mode）的工作區，行為與先前相同。
+
+### Added
+
+- 設定 `markdooown.allowRemoteImages`（預設開啟）：關閉後不載入 `https:` 遠端圖片，避免被當成追蹤像素。
+
 ## [0.1.0] - 2026-09-19
 
 ### Added

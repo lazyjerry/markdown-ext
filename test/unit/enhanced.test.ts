@@ -1,15 +1,12 @@
 import * as assert from 'node:assert/strict';
 
-import markdownItKatex from '@vscode/markdown-it-katex';
-import footnote from 'markdown-it-footnote';
-
+import { applyEnhancedPlugins } from '../../src/webview/enhancedPlugins';
 import { createRenderer } from '../../src/webview/render';
 
-// 與 src/webview/enhanced.ts 相同的外掛組合；那支是瀏覽器 bundle 入口，會碰 window，不能直接在 node 載入。
+// src/webview/enhanced.ts 是會碰 window 的瀏覽器 bundle 入口，改套用它使用的同一支 applyEnhancedPlugins。
 suite('enhanced render', () => {
   const md = createRenderer();
-  md.use(markdownItKatex, { enableFencedBlocks: true, throwOnError: false });
-  md.use(footnote);
+  applyEnhancedPlugins(md);
 
   test('行內與區塊數學式', () => {
     assert.match(md.render('$a^2$\n'), /class="katex"/);
