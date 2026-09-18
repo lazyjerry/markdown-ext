@@ -1,0 +1,99 @@
+{
+  "name": "markdooown",
+  "displayName": "markdooown",
+  "description": "在 VS Code 底部面板即時預覽目前開啟的 Markdown 檔案，可切換一般預覽與增強預覽（數學式、註腳、Mermaid）。面板沒開就完全不動作。",
+  "version": "0.1.0",
+  "publisher": "workjerry",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/lazyjerry/markdown-ext.git"
+  },
+  "bugs": {
+    "url": "https://github.com/lazyjerry/markdown-ext/issues"
+  },
+  "homepage": "https://github.com/lazyjerry/markdown-ext#readme",
+  "keywords": [
+    "markdown",
+    "preview",
+    "md",
+    "mermaid",
+    "katex",
+    "math"
+  ],
+  "engines": {
+    "vscode": "^1.90.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "extensionKind": [
+    "ui",
+    "workspace"
+  ],
+  "icon": "resources/icon.png",
+  "main": "./out/extension.js",
+  "contributes": {
+    "viewsContainers": {
+      "panel": [
+        {
+          "id": "markdooown",
+          "title": "markdooown",
+          "icon": "resources/book.svg"
+        }
+      ]
+    },
+    "views": {
+      "markdooown": [
+        {
+          "type": "webview",
+          "id": "markdooown.preview",
+          "name": "markdooown",
+          "icon": "resources/book.svg",
+          "contextualTitle": "markdooown"
+        }
+      ]
+    },
+    "commands": [
+      {
+        "command": "markdooown.show",
+        "title": "markdooown: Show Preview Panel"
+      }
+    ]
+  },
+  "scripts": {
+    "typecheck": "tsc -p . --noEmit",
+    "build:extension": "esbuild src/extension.ts --bundle --platform=node --format=cjs --external:vscode --outfile=out/extension.js --sourcemap",
+    "build:webview": "esbuild src/webview/main.ts src/webview/enhanced.ts --bundle --minify --format=iife --platform=browser --target=es2022 --outdir=media --sourcemap",
+    "build:vendor": "./scripts/copy-vendor.sh",
+    "build:tests": "tsc -p .",
+    "build": "npm run typecheck && npm run build:extension && npm run build:webview && npm run build:vendor",
+    "vscode:prepublish": "npm run build",
+    "lint": "eslint .",
+    "test:unit": "npm run build:tests && mocha --ui tdd --timeout 10000 \"out/test/unit/**/*.test.js\"",
+    "test": "npm run build && npm run test:unit",
+    "check": "npm run lint && npm run test",
+    "package:vsix": "npm run check && vsce package --no-dependencies",
+    "release": "./scripts/publish.sh"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.39.5",
+    "@types/markdown-it": "^14.2.0",
+    "@types/markdown-it-footnote": "^3.0.4",
+    "@types/mocha": "^10.0.10",
+    "@types/node": "^24.13.5",
+    "@types/vscode": "^1.90.0",
+    "@vscode/markdown-it-katex": "^1.1.2",
+    "@vscode/vsce": "^3.9.2",
+    "esbuild": "^0.25.12",
+    "eslint": "^9.39.5",
+    "highlight.js": "^11.12.0",
+    "katex": "^0.18.7",
+    "markdown-it": "^14.3.2",
+    "markdown-it-footnote": "^4.0.0",
+    "mermaid": "^12.0.0",
+    "mocha": "^11.8.0",
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.70.0"
+  }
+}
