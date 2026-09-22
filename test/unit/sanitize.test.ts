@@ -3,7 +3,6 @@ import * as assert from 'node:assert/strict';
 import createDOMPurify from 'dompurify';
 import { JSDOM } from 'jsdom';
 
-import { applyEnhancedPlugins } from '../../src/webview/enhancedPlugins';
 import { createRenderer } from '../../src/webview/render';
 import { createSafeRender } from '../../src/webview/sanitize';
 
@@ -11,12 +10,10 @@ suite('sanitize', () => {
   const { window } = new JSDOM('<!DOCTYPE html><body></body>');
   const safeRender = createSafeRender(createDOMPurify(window as unknown as Parameters<typeof createDOMPurify>[0]));
   const basic = createRenderer();
-  const enhanced = createRenderer();
-  applyEnhancedPlugins(enhanced);
 
-  function html(text: string, md = basic): string {
+  function html(text: string): string {
     const div = window.document.createElement('div');
-    div.append(safeRender(md, text));
+    div.append(safeRender(basic, text));
     return div.innerHTML;
   }
 
@@ -51,12 +48,6 @@ suite('sanitize', () => {
     test('表格對齊以外的 style 不放行', () => {
       const out = html('<table><tr><td style="text-align:left;position:fixed">x</td></tr></table>\n');
       assert.doesNotMatch(out, /style=/);
-    });
-
-    test('手寫的佔位元素換不出 KaTeX 以外的內容', () => {
-      assert.doesNotMatch(html('<markdooown-trusted data-i="0"></markdooown-trusted>\n'), /markdooown-trusted|katex/);
-      const out = html('$a$ <markdooown-trusted data-i="0"></markdooown-trusted>\n', enhanced);
-      assert.equal(out.match(/class="katex"/g)?.length, 2);
     });
   });
 
@@ -112,23 +103,6 @@ suite('sanitize', () => {
       assert.match(out, /href="docs\/a\.md#x"/);
       assert.match(out, /href="https:\/\/e\.com"/);
       assert.match(out, /href="mailto:a@b\.c"/);
-    });
-
-    test('KaTeX 保留自己的 inline style', () => {
-      const raw = enhanced.render('$a^2$\n\n$$\n\\frac{1}{2}\n$$\n\n```math\nx_i\n```\n');
-      const out = html('$a^2$\n\n$$\n\\frac{1}{2}\n$$\n\n```math\nx_i\n```\n', enhanced);
-      assert.match(out, /class="katex"/);
-      assert.equal(out.match(/class="katex-block"/g)?.length, 2);
-      assert.match(out, /style="[^"]*height/);
-      assert.equal(out.match(/style="/g)?.length, raw.match(/style="/g)?.length);
-      assert.doesNotMatch(out, /markdooown-trusted/);
-    });
-
-    test('註腳與 Mermaid 原始碼保留', () => {
-      const out = html('文字[^1]\n\n[^1]: 說明\n\n```mermaid\ngraph TD; A-->B\n```\n', enhanced);
-      assert.match(out, /class="footnote-ref"/);
-      assert.match(out, /id="fn1"/);
-      assert.match(out, /<pre><code class="language-mermaid">graph TD; A--&gt;B/);
     });
   });
 });

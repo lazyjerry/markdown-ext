@@ -3,17 +3,26 @@ import { randomBytes } from 'node:crypto';
 import * as vscode from 'vscode';
 
 import type { TabTarget } from '../core/follow';
-import { decideFollow } from '../core/follow';
+import { decideFollow, isPreviewStale } from '../core/follow';
 import { classifyLink, isWithin } from '../core/links';
-import type { ClientMessage, HostMessage, PreviewMode } from '../shared/protocol';
-import { isClientMessage, isPreviewMode } from '../shared/protocol';
+import type { ClientMessage, HostMessage } from '../shared/protocol';
+import { isClientMessage } from '../shared/protocol';
 
 /** 打字時合併更新；大檔案重算成本高，間隔拉長。 */
 const RENDER_DELAY_MS = 120;
 const LARGE_DOC_RENDER_DELAY_MS = 400;
 const LARGE_DOC_CHARS = 200_000;
-const MODE_KEY = 'markdooown.mode';
+const AUTO_REFRESH_KEY = 'markdooown.autoRefresh';
 const REMOTE_IMAGES_SETTING = 'markdooown.allowRemoteImages';
+
+/**
+ * 畫面上正在顯示的東西。關掉自動刷新時畫面要停在最後的狀態，
+ * 而文件可能已經被改、被關（以預覽模式開啟的 .md 沒有編輯器引用時會被 VS Code 回收），
+ * 所以保留當時的文字快照，webview 重載後照樣重現同一個畫面。
+ */
+type Shown =
+  | { kind: 'render'; docKey: string; fileName: string; text: string; dir: vscode.Uri | undefined }
+  | { kind: 'idle'; reason: 'none' | 'notMarkdown' };
 
 export class PreviewViewProvider implements vscode.WebviewViewProvider, vscode.Disposable {
   static readonly viewType = 'markdooown.preview';
@@ -22,6 +31,9 @@ export class PreviewViewProvider implements vscode.WebviewViewProvider, vscode.D
   /** 目前預覽的文件；undefined 表示面板處於待機，不追蹤任何文件。 */
   private doc: vscode.TextDocument | undefined;
   private idleReason: 'none' | 'notMarkdown' = 'none';
+  private shown: Shown | undefined;
+  /** 顯示的快照產生之後，那份文件又被改過。 */
+  private edited = false;
   /** 只在面板可見時存在的訂閱；面板收起就全數釋放，讓擴充回到完全不動作的狀態。 */
   private liveSubscriptions: vscode.Disposable[] = [];
   private renderTimer: ReturnType<typeof setTimeout> | undefined;
@@ -36,9 +48,8 @@ export class PreviewViewProvider implements vscode.WebviewViewProvider, vscode.D
     private readonly state: vscode.Memento,
   ) {}
 
-  private get mode(): PreviewMode {
-    const saved = this.state.get<unknown>(MODE_KEY);
-    return isPreviewMode(saved) ? saved : 'basic';
+  private get autoRefresh(): boolean {
+    return this.state.get<unknown>(AUTO_REFRESH_KEY) === true;
   }
 
   resolveWebviewView(webviewView: vscode.WebviewView): void {
@@ -90,8 +101,14 @@ export class PreviewViewProvider implements vscode.WebviewViewProvider, vscode.D
       vscode.window.tabGroups.onDidChangeTabs(follow),
       vscode.window.tabGroups.onDidChangeTabGroups(follow),
       vscode.workspace.onDidChangeTextDocument((event) => {
-        if (event.document === this.doc && event.contentChanges.length > 0) {
+        if (event.document !== this.doc || event.contentChanges.length === 0) {
+          return;
+        }
+        if (this.autoRefresh) {
           this.scheduleRender();
+        } else {
+          this.edited = true;
+          this.postStatus();
         }
       }),
       vscode.workspace.onDidChangeConfiguration((event) => {
@@ -102,14 +119,20 @@ export class PreviewViewProvider implements vscode.WebviewViewProvider, vscode.D
       vscode.workspace.onDidCloseTextDocument((closed) => {
         // 以預覽模式開啟的 .md 是我們自己 openTextDocument 載入的，VS Code 會在沒有編輯器引用時回收它；
         // 分頁還開著就重新載入，而不是讓預覽消失。
-        if (closed === this.doc) {
-          this.doc = undefined;
-          void this.followActiveTab().then(() => {
-            if (!this.doc) {
-              this.setIdle('none', true);
-            }
-          });
+        if (closed !== this.doc) {
+          return;
         }
+        this.doc = undefined;
+        if (!this.autoRefresh) {
+          // 畫面停在快照上，等使用者自己按刷新。
+          this.postStatus();
+          return;
+        }
+        void this.followActiveTab().then(() => {
+          if (!this.doc) {
+            this.setIdle('none', true);
+          }
+        });
       }),
     );
     // 面板收起期間不訂閱設定變更，重新顯示時補檢查。
@@ -135,10 +158,15 @@ export class PreviewViewProvider implements vscode.WebviewViewProvider, vscode.D
     this.clearTimer();
   }
 
-  private async followActiveTab(): Promise<void> {
+  /** `force` 來自使用者按下刷新（或剛打開自動刷新）：即使分頁沒變也重畫一次。 */
+  private async followActiveTab(force = false): Promise<void> {
+    if (!this.autoRefresh && !force) {
+      this.postStatus();
+      return;
+    }
     const seq = ++this.followSeq;
     const uri = activeTabUri();
-    if (uri && this.doc && uri.toString() === this.doc.uri.toString()) {
+    if (!force && uri && this.doc && uri.toString() === this.doc.uri.toString()) {
       return;
     }
     const loaded = uri && vscode.workspace.textDocuments.find((doc) => doc.uri.toString() === uri.toString());
@@ -154,20 +182,26 @@ export class PreviewViewProvider implements vscode.WebviewViewProvider, vscode.D
           }
         }
         if (seq === this.followSeq && this.view?.visible) {
-          this.show(doc);
+          this.show(doc, force);
         }
         break;
       }
       case 'idle':
-        this.setIdle('notMarkdown');
+        this.setIdle('notMarkdown', force);
         break;
       case 'keep':
+        // 分頁沒有對應檔案（設定頁、終端機分頁）；手動刷新時就重畫目前這份。
+        if (force && this.doc) {
+          this.postCurrent();
+        } else if (force) {
+          this.postStatus();
+        }
         break;
     }
   }
 
-  private show(doc: vscode.TextDocument): void {
-    if (doc === this.doc) {
+  private show(doc: vscode.TextDocument, force = false): void {
+    if (doc === this.doc && !force) {
       return;
     }
     this.doc = doc;
@@ -202,9 +236,9 @@ export class PreviewViewProvider implements vscode.WebviewViewProvider, vscode.D
     }
   }
 
+  /** 依目前追蹤的文件產生新的快照並送出。 */
   private postCurrent(): void {
-    const view = this.view;
-    if (!view?.visible) {
+    if (!this.view?.visible) {
       return;
     }
     // 面板收起期間不追蹤關檔事件，重新顯示時才發現文件已關閉。
@@ -213,19 +247,59 @@ export class PreviewViewProvider implements vscode.WebviewViewProvider, vscode.D
       this.idleReason = 'none';
     }
     const doc = this.doc;
-    if (!doc) {
-      this.post({ type: 'idle', reason: this.idleReason });
+    this.shown = doc
+      ? {
+          kind: 'render',
+          docKey: doc.uri.toString(),
+          fileName: doc.isUntitled ? doc.uri.path : vscode.workspace.asRelativePath(doc.uri, false),
+          text: doc.getText(),
+          dir: documentDir(doc),
+        }
+      : { kind: 'idle', reason: this.idleReason };
+    this.edited = false;
+    this.postShown();
+    this.postStatus();
+  }
+
+  /** 重送目前的快照；webview 重載後要靠它回到原本的畫面。 */
+  private postShown(): void {
+    const view = this.view;
+    const shown = this.shown;
+    if (!view?.visible || !shown) {
       return;
     }
-    const dir = documentDir(doc);
+    if (shown.kind === 'idle') {
+      this.post({ type: 'idle', reason: shown.reason });
+      return;
+    }
     this.post({
       type: 'render',
-      docKey: doc.uri.toString(),
-      fileName: doc.isUntitled ? doc.uri.path : vscode.workspace.asRelativePath(doc.uri, false),
-      text: doc.getText(),
-      baseUri: dir ? `${view.webview.asWebviewUri(dir).toString()}/` : '',
-      mode: this.mode,
+      docKey: shown.docKey,
+      fileName: shown.fileName,
+      text: shown.text,
+      baseUri: shown.dir ? `${view.webview.asWebviewUri(shown.dir).toString()}/` : '',
     });
+  }
+
+  private postStatus(): void {
+    const autoRefresh = this.autoRefresh;
+    this.post({ type: 'status', autoRefresh, stale: autoRefresh ? false : this.computeStale() });
+  }
+
+  private computeStale(): boolean {
+    const uri = activeTabUri();
+    const loaded = uri && vscode.workspace.textDocuments.find((doc) => doc.uri.toString() === uri.toString());
+    const target: TabTarget | undefined = uri && { scheme: uri.scheme, path: uri.path, languageId: loaded?.languageId };
+    const shownDocKey = this.shown ? (this.shown.kind === 'render' ? this.shown.docKey : null) : undefined;
+    return isPreviewStale(decideFollow(target), uri?.toString(), shownDocKey, this.edited);
+  }
+
+  /** 解析連結用的基準目錄；文件已被回收時退回快照裡記下的目錄。 */
+  private currentDir(): vscode.Uri | undefined {
+    if (this.doc) {
+      return documentDir(this.doc);
+    }
+    return this.shown?.kind === 'render' ? this.shown.dir : undefined;
   }
 
   private post(message: HostMessage): void {
@@ -256,13 +330,26 @@ export class PreviewViewProvider implements vscode.WebviewViewProvider, vscode.D
 
   private async handleMessage(message: ClientMessage): Promise<void> {
     if (message.type === 'ready') {
-      this.postCurrent();
+      // 重載前顯示過東西就重現同一個畫面，什麼都還沒顯示過才去跟隨目前的分頁。
+      if (this.shown) {
+        this.postShown();
+        this.postStatus();
+      } else {
+        await this.followActiveTab(true);
+      }
       return;
     }
-    if (message.type === 'setMode') {
-      if (message.mode !== this.mode) {
-        await this.state.update(MODE_KEY, message.mode);
-        this.postCurrent();
+    if (message.type === 'refresh') {
+      await this.followActiveTab(true);
+      return;
+    }
+    if (message.type === 'setAutoRefresh') {
+      await this.state.update(AUTO_REFRESH_KEY, message.value);
+      // 打開自動刷新就立刻追上目前的分頁；關掉只要更新按鈕狀態。
+      if (message.value) {
+        await this.followActiveTab(true);
+      } else {
+        this.postStatus();
       }
       return;
     }
@@ -274,15 +361,15 @@ export class PreviewViewProvider implements vscode.WebviewViewProvider, vscode.D
       await vscode.env.openExternal(vscode.Uri.parse(target.url));
       return;
     }
-    const doc = this.doc;
+    const dir = this.currentDir();
     const base = target.path.startsWith('/')
-      ? (doc && vscode.workspace.getWorkspaceFolder(doc.uri)?.uri) ?? vscode.Uri.file('/')
-      : doc && documentDir(doc);
+      ? (dir && vscode.workspace.getWorkspaceFolder(dir)?.uri) ?? vscode.Uri.file('/')
+      : dir;
     if (!base) {
       return;
     }
     const uri = vscode.Uri.joinPath(base, target.path);
-    if (!isAllowedLinkTarget(uri, doc)) {
+    if (!isAllowedLinkTarget(uri, dir)) {
       void vscode.window.showWarningMessage(`markdooown：連結指向工作區與文件目錄以外的位置，已略過 ${uri.fsPath}`);
       return;
     }
@@ -296,9 +383,6 @@ export class PreviewViewProvider implements vscode.WebviewViewProvider, vscode.D
   private getHtml(webview: vscode.Webview, mediaUri: vscode.Uri, remoteImages: boolean): string {
     const scriptUri = webview.asWebviewUri(vscode.Uri.joinPath(mediaUri, 'main.js'));
     const styleUri = webview.asWebviewUri(vscode.Uri.joinPath(mediaUri, 'styles.css'));
-    const enhancedUri = webview.asWebviewUri(vscode.Uri.joinPath(mediaUri, 'enhanced.js'));
-    const katexCssUri = webview.asWebviewUri(vscode.Uri.joinPath(mediaUri, 'katex', 'katex.min.css'));
-    const mermaidUri = webview.asWebviewUri(vscode.Uri.joinPath(mediaUri, 'vendor', 'mermaid.min.js'));
     const nonce = createNonce();
     const csp = [
       "default-src 'none'",
@@ -320,12 +404,12 @@ export class PreviewViewProvider implements vscode.WebviewViewProvider, vscode.D
   <link href="${styleUri}" rel="stylesheet">
   <title>markdooown</title>
 </head>
-<body data-enhanced-src="${enhancedUri}" data-katex-css="${katexCssUri}" data-mermaid-src="${mermaidUri}">
+<body>
   <header id="bar">
     <span id="file"></span>
-    <div class="modes" role="group" aria-label="預覽模式">
-      <button type="button" data-mode="basic" title="CommonMark＋GFM，最輕量">預覽</button>
-      <button type="button" data-mode="enhanced" title="另支援數學式、註腳、Mermaid 圖表">增強預覽</button>
+    <div class="actions">
+      <button type="button" id="auto" aria-pressed="false" title="切換分頁或編輯時自動更新預覽；關閉時畫面停在最後一次的內容">自動刷新</button>
+      <button type="button" id="refresh" aria-pressed="true" title="更新到目前分頁的內容">預覽</button>
     </div>
   </header>
   <main id="content" class="markdown-body"></main>
@@ -355,11 +439,10 @@ function documentDir(doc: vscode.TextDocument): vscode.Uri | undefined {
 }
 
 /** 連結只能開到某個工作區資料夾內，或目前文件所在目錄之下；`..` 已由 joinPath 解析掉。 */
-function isAllowedLinkTarget(uri: vscode.Uri, doc: vscode.TextDocument | undefined): boolean {
+function isAllowedLinkTarget(uri: vscode.Uri, dir: vscode.Uri | undefined): boolean {
   if (vscode.workspace.getWorkspaceFolder(uri)) {
     return true;
   }
-  const dir = doc && !doc.isUntitled ? documentDir(doc) : undefined;
   return !!dir && isWithin(uri.toString(), dir.toString());
 }
 

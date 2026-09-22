@@ -40,7 +40,7 @@ body {
   text-overflow: ellipsis;
 }
 
-.modes {
+.actions {
   display: flex;
   flex: none;
   border: 1px solid var(--md-border);
@@ -48,7 +48,7 @@ body {
   overflow: hidden;
 }
 
-.modes button {
+.actions button {
   padding: 1px 8px;
   border: 0;
   font: inherit;
@@ -58,27 +58,23 @@ body {
   cursor: pointer;
 }
 
-.modes button + button {
+.actions button + button {
   border-left: 1px solid var(--md-border);
 }
 
-.modes button:hover {
+.actions button:hover {
   color: var(--vscode-foreground);
   background: var(--vscode-toolbar-hoverBackground, rgba(128, 128, 128, 0.15));
 }
 
-.modes button.active {
+.actions button.active {
   color: var(--vscode-button-foreground);
   background: var(--vscode-button-background);
 }
 
-.modes button:focus-visible {
+.actions button:focus-visible {
   outline: 1px solid var(--vscode-focusBorder);
   outline-offset: -1px;
-}
-
-body.idle #bar {
-  display: none;
 }
 
 .markdown-body {
@@ -220,35 +216,6 @@ body.idle #bar {
   margin: 1.5em 0;
   border: 0;
   background: var(--md-border);
-}
-
-/* 增強預覽 */
-.markdown-body .mermaid-diagram {
-  margin: 0 0 1em;
-  overflow: auto;
-  text-align: center;
-}
-
-.markdown-body .mermaid-error {
-  border-left: 3px solid var(--vscode-editorError-foreground, #f14c4c);
-}
-
-.markdown-body .katex-display {
-  overflow-x: auto;
-  overflow-y: hidden;
-}
-
-.markdown-body .footnotes {
-  font-size: 0.9em;
-  color: var(--md-muted);
-}
-
-.markdown-body .footnotes-sep {
-  margin: 2em 0 1em;
-}
-
-.markdown-body .footnote-ref a {
-  text-decoration: none;
 }
 
 /* highlight.js：淺色 */

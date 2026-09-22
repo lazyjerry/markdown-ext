@@ -32,3 +32,25 @@ export function decideFollow(target: TabTarget | undefined): FollowAction {
   }
   return MARKDOWN_EXT.test(target.path) ? 'show' : 'idle';
 }
+
+/**
+ * 關閉自動刷新時畫面停在最後一次渲染的結果，這裡判斷它是否已經跟不上目前的分頁。
+ * `shownDocKey`：顯示中文件的鍵，`null` 表示顯示待機訊息，`undefined` 表示還沒顯示過任何東西。
+ * `edited`：顯示中的文件在那之後被改過。
+ */
+export function isPreviewStale(
+  action: FollowAction,
+  targetKey: string | undefined,
+  shownDocKey: string | null | undefined,
+  edited: boolean,
+): boolean {
+  switch (action) {
+    // 分頁沒有對應檔案，畫面本來就該維持現況，只有內容被改過才算過時。
+    case 'keep':
+      return edited;
+    case 'idle':
+      return shownDocKey !== null;
+    case 'show':
+      return shownDocKey !== targetKey || edited;
+  }
+}

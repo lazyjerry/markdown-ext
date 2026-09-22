@@ -11,6 +11,3 @@ AGENTS.md
 .claude/
 .agents/
 **/*衝突的複本*
-media/enhanced.js
-media/vendor/
-media/katex/

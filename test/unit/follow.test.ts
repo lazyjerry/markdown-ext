@@ -1,6 +1,6 @@
 import * as assert from 'node:assert/strict';
 
-import { decideFollow } from '../../src/core/follow';
+import { decideFollow, isPreviewStale } from '../../src/core/follow';
 
 const tab = (path: string, languageId?: string, scheme = 'file') => ({ scheme, path, languageId });
 
@@ -32,5 +32,34 @@ suite('decideFollow', () => {
   test('非檔案類 scheme → keep', () => {
     assert.equal(decideFollow(tab('/x.md', 'markdown', 'git')), 'keep');
     assert.equal(decideFollow(tab('extension-output', 'Log', 'output')), 'keep');
+  });
+});
+
+suite('isPreviewStale', () => {
+  const A = 'file:///a/README.md';
+  const B = 'file:///a/NOTES.md';
+
+  test('切到另一份 Markdown → 過時', () => {
+    assert.equal(isPreviewStale('show', B, A, false), true);
+    assert.equal(isPreviewStale('show', A, A, false), false);
+  });
+
+  test('顯示中的文件被改過 → 過時', () => {
+    assert.equal(isPreviewStale('show', A, A, true), true);
+    assert.equal(isPreviewStale('keep', undefined, A, true), true);
+  });
+
+  test('分頁沒有對應檔案且沒改過 → 不算過時', () => {
+    assert.equal(isPreviewStale('keep', undefined, A, false), false);
+  });
+
+  test('切到非 Markdown → 過時，已經在待機就不是', () => {
+    assert.equal(isPreviewStale('idle', 'file:///a/b.ts', A, false), true);
+    assert.equal(isPreviewStale('idle', 'file:///a/b.ts', null, false), false);
+  });
+
+  test('還沒顯示過任何東西 → 過時', () => {
+    assert.equal(isPreviewStale('show', A, undefined, false), true);
+    assert.equal(isPreviewStale('idle', 'file:///a/b.ts', undefined, false), true);
   });
 });

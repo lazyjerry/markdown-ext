@@ -1,14 +1,10 @@
 import type { DOMPurify } from 'dompurify';
 import type MarkdownIt from 'markdown-it';
 
-import type { TrustedEnv } from './trusted';
-import { TRUSTED_TAG } from './trusted';
-
 const CONFIG = {
-  // style／style 屬性可蓋住面板做點擊劫持（CSP 必須放行 inline 樣式給 Mermaid），form、meta、base 可偽造表單或導向。
+  // style／style 屬性可蓋住面板做點擊劫持（CSP 放行 inline 樣式），form、meta、base 可偽造表單或導向。
   FORBID_TAGS: ['style', 'form', 'meta', 'base', 'iframe', 'object', 'embed', 'link'],
   FORBID_ATTR: ['style'],
-  ADD_TAGS: [TRUSTED_TAG],
   RETURN_DOM_FRAGMENT: true as const,
 };
 
@@ -30,20 +26,5 @@ export function createSafeRender(purify: DOMPurify): (md: MarkdownIt, text: stri
     }
   });
 
-  return (md, text) => {
-    const env: TrustedEnv = { trusted: [] };
-    const fragment = purify.sanitize(md.render(text, env), CONFIG);
-    for (const slot of fragment.querySelectorAll(TRUSTED_TAG)) {
-      // 原文手寫的佔位元素最多只能換出同一份文件自己的 KaTeX 輸出。
-      const html = env.trusted![Number(slot.getAttribute('data-i') ?? NaN)];
-      if (html === undefined) {
-        slot.remove();
-        continue;
-      }
-      const template = slot.ownerDocument.createElement('template');
-      template.innerHTML = html;
-      slot.replaceWith(template.content);
-    }
-    return fragment;
-  };
+  return (md, text) => purify.sanitize(md.render(text), CONFIG);
 }
