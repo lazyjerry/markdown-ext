@@ -43,4 +43,29 @@ suite('render', () => {
     assert.equal(resolveResource('/abs.png', base), '/abs.png');
     assert.equal(resolveResource('a.png', ''), 'a.png');
   });
+
+  test('開頭的 YAML front matter 畫成欄位表，巢狀物件與網址可讀', () => {
+    const html = md.render('---\nticket: HRM-1\ndate: 2026-09-29\nrefs:\n  spec: https://example.com/a\ntags: [a, b]\n---\n\n# Title\n');
+    assert.match(html, /^<table class="front-matter"><tbody><tr><th>ticket<\/th><td>HRM-1<\/td><\/tr>/);
+    assert.match(html, /<th>date<\/th><td>2026-09-29<\/td>/);
+    assert.match(html, /<table class="front-matter-nested"><tbody><tr><th>spec<\/th><td><a href="https:\/\/example.com\/a">/);
+    assert.match(html, /<ul><li>a<\/li><li>b<\/li><\/ul>/);
+    assert.match(html, /<h1 id="title">Title<\/h1>/);
+    assert.doesNotMatch(html, /<h2|<hr/);
+  });
+
+  test('front matter 的值會跳脫，不當 Markdown 或 HTML', () => {
+    const html = md.render('---\ntitle: "<b>x</b> *y*"\n---\n');
+    assert.match(html, /<td>&lt;b&gt;x&lt;\/b&gt; \*y\*<\/td>/);
+  });
+
+  test('YAML 解析失敗退回高亮原文', () => {
+    assert.match(md.render('---\na: [1\n---\n'), /<pre class="front-matter-raw"><code class="language-yaml">/);
+  });
+
+  test('不在第一行的 --- 照常是分隔線', () => {
+    const html = md.render('text\n\n---\na: 1\n---\n');
+    assert.doesNotMatch(html, /front-matter/);
+    assert.match(html, /<hr>/);
+  });
 });

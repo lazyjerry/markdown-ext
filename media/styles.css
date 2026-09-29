@@ -199,6 +199,44 @@ body {
   border: 1px solid var(--md-border);
 }
 
+.markdown-body .front-matter {
+  display: table;
+  width: 100%;
+  margin-bottom: 1.5em;
+  font-size: 0.9em;
+}
+
+.markdown-body .front-matter th,
+.markdown-body .front-matter-nested th {
+  width: 1%;
+  white-space: nowrap;
+  text-align: left;
+  vertical-align: top;
+  font-weight: 600;
+  color: var(--md-muted);
+}
+
+.markdown-body .front-matter td {
+  overflow-wrap: anywhere;
+}
+
+.markdown-body .front-matter-nested {
+  display: table;
+  width: 100%;
+  margin: 0;
+}
+
+.markdown-body .front-matter-nested th,
+.markdown-body .front-matter-nested td {
+  padding: 2px 8px 2px 0;
+  border: 0;
+}
+
+.markdown-body .front-matter ul {
+  margin: 0;
+  padding-left: 1.2em;
+}
+
 .markdown-body th {
   font-weight: 600;
 }
