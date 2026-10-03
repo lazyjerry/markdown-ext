@@ -406,7 +406,13 @@ export class PreviewViewProvider implements vscode.WebviewViewProvider, vscode.D
 </head>
 <body>
   <header id="bar">
-    <span id="file"></span>
+    <span id="file"><span id="file-dir"></span><span id="file-base"></span></span>
+    <div class="search">
+      <input type="text" id="query" placeholder="搜尋" aria-label="在預覽中搜尋" title="⌘F／Ctrl+F 聚焦；Enter 下一個、Shift+Enter 上一個、Esc 清除" spellcheck="false" autocomplete="off">
+      <span id="count" aria-live="polite"></span>
+      <button type="button" id="prev" disabled title="上一個 (Shift+Enter)" aria-label="上一個">↑</button>
+      <button type="button" id="next" disabled title="下一個 (Enter)" aria-label="下一個">↓</button>
+    </div>
     <div class="actions">
       <button type="button" id="auto" aria-pressed="false" title="切換分頁或編輯時自動更新預覽；關閉時畫面停在最後一次的內容">自動刷新</button>
       <button type="button" id="refresh" aria-pressed="true" title="更新到目前分頁的內容">預覽</button>

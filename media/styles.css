@@ -32,10 +32,26 @@ body {
   border-bottom: 1px solid var(--md-border);
 }
 
+/*
+ * 空間不夠時的讓位順序：搜尋框先縮、再截斷目錄、最後才截斷檔名。
+ * --base-width 是檔名實際寬度（main.ts 量），上限頂列 40%，避免把按鈕擠出畫面。
+ */
 #file {
+  display: flex;
   flex: 1;
-  min-width: 0;
+  min-width: min(var(--base-width, 0px), 40%);
   white-space: nowrap;
+}
+
+#file-dir {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+#file-base {
+  flex: 0 0 var(--base-width, auto);
+  max-width: 100%;
   overflow: hidden;
   text-overflow: ellipsis;
 }
@@ -75,6 +91,85 @@ body {
 .actions button:focus-visible {
   outline: 1px solid var(--vscode-focusBorder);
   outline-offset: -1px;
+}
+
+.search {
+  display: flex;
+  flex: 0 1 220px;
+  min-width: 70px;
+  align-items: center;
+  gap: 2px;
+  padding: 0 2px 0 6px;
+  color: var(--vscode-input-foreground);
+  background: var(--vscode-input-background);
+  border: 1px solid var(--vscode-input-border, var(--md-border));
+  border-radius: 2px;
+}
+
+.search:focus-within {
+  border-color: var(--vscode-focusBorder);
+}
+
+#query {
+  flex: 1;
+  min-width: 0;
+  padding: 1px 0;
+  border: 0;
+  outline: 0;
+  font: inherit;
+  font-size: 11px;
+  color: inherit;
+  background: transparent;
+}
+
+#query::placeholder {
+  color: var(--vscode-input-placeholderForeground);
+}
+
+#count {
+  flex: none;
+  color: var(--md-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+#count:empty {
+  display: none;
+}
+
+.search button {
+  flex: none;
+  padding: 0 3px;
+  border: 0;
+  border-radius: 3px;
+  font: inherit;
+  font-size: 11px;
+  line-height: 16px;
+  color: var(--md-muted);
+  background: transparent;
+  cursor: pointer;
+}
+
+.search button:hover:not(:disabled) {
+  color: var(--vscode-foreground);
+  background: var(--vscode-toolbar-hoverBackground, rgba(128, 128, 128, 0.15));
+}
+
+.search button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.search button:focus-visible {
+  outline: 1px solid var(--vscode-focusBorder);
+  outline-offset: -1px;
+}
+
+::highlight(markdooown-search) {
+  background-color: var(--vscode-editor-findMatchHighlightBackground, rgba(234, 92, 0, 0.33));
+}
+
+::highlight(markdooown-search-current) {
+  background-color: var(--vscode-editor-findMatchBackground, rgba(255, 150, 50, 0.6));
 }
 
 .markdown-body {

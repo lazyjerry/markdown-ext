@@ -2,7 +2,7 @@
   "name": "markdooown",
   "displayName": "markdooown",
   "description": "在 VS Code 底部面板即時預覽目前開啟的 Markdown 檔案，可切換自動刷新或手動刷新。面板沒開就完全不動作。",
-  "version": "0.3.0",
+  "version": "0.4.1",
   "publisher": "workjerry",
   "license": "Apache-2.0",
   "repository": {
